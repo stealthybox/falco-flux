@@ -1,0 +1,20 @@
+# https://gist.githubusercontent.com/delucca/1f3a71b7ff05f31d492dc5bfd3f3afba/raw/5237991f018f99a697e937a85e60e57dd8ac1a1c/function.yaml
+
+apiVersion: kubeless.io/v1beta1
+kind: Function
+metadata:
+  name: cron-test-hello-world
+  namespace: default
+  label:
+    created-by: kubeless
+spec:
+  runtime: nodejs12
+  timeout: "6"
+  handler: cron-test-hello-world.default
+  deps: ""
+  function-content-type: text
+  function: |
+    module.exports = function() {
+      console.log("Hello world!");
+      return null;
+    };
