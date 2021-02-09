@@ -14,9 +14,9 @@ spec:
         name: falco
       interval: 1m
   values:
+    ebpf.enabled: true
     customRules:
-      rules-test.yaml: ""
-      ebpf.enabled: true 
+      rules-test.yaml: "" 
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2beta1
 kind: HelmRelease
