@@ -23,8 +23,8 @@ spec:
       cookierules.yaml: |+
         - rule: Cookie recipes tampering detector
           desc: Detect tampering of super precious cookie recipes
-          condition: modify and evt.arg.oldpath startswith '/usr/share/nginx'
-          output: Cookie recipes tampering detected, secure your cookies, make an espresso and eat all of them if necessary. No one can have them. (uid=%user.uid container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag %evt.arg.oldpath)
+          condition: modify
+          output: Cookie recipes tampering detected, secure your cookies, make an espresso and eat all of them if necessary. No one can have them. (uid=%user.uid container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag %evt.arg.oldpath %evt.arg.path)
           priority: WARNING
           tags: [importantrecipesalert]
 
