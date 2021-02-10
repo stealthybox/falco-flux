@@ -20,7 +20,14 @@ spec:
       syscallEventDrops:
         actions: []
     customRules:
-      rules-test.yaml: "" 
+      cookierules.yaml: |+
+        - rule: Cookie recipes tampering detector
+          desc: Detect tampering of super precious cookie recipes
+          condition: modify and (evt.arg.oldpath startswith '/usr/share/nginx' or evt.arg.path startswith '/usr/share/nginx')
+          output: Cookie recipes tampering detected, secure your cookies, make an espresso and eat all of them if necessary. No one can have them. (uid=%user.uid container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag %evt.arg.oldpath)
+          priority: WARNING
+          tags: [importantrecipesalert]
+
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2beta1
 kind: HelmRelease
