@@ -14,7 +14,8 @@ spec:
         name: falco
       interval: 1m
   values:
-    ebpf.enabled: true
+    ebpf:
+      enabled: true
     customRules:
       rules-test.yaml: "" 
 ---
