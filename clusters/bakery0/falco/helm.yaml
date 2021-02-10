@@ -16,6 +16,9 @@ spec:
   values:
     ebpf:
       enabled: true
+    falco:
+      syscallEventDrops:
+        actions: []
     customRules:
       rules-test.yaml: "" 
 ---
