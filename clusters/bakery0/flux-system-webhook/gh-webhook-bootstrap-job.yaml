@@ -1,0 +1,141 @@
+# safely bootstraps a GitHub Webhook -- expects a Secret with a PAT that has repo or hook access
+# if a cluster is made /w `flux bootstrap --token-auth`, it's possible to use the password from the flux-system Secret
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gh-webhook-bootstrap
+  namespace: flux-system
+spec:
+  template:
+    spec:
+      serviceAccountName: gh-webhook-bootstrap
+      restartPolicy: Never
+      volumes:
+      - name: repo-pat
+        secret:
+          secretName: flux-system
+          items:
+            - key: password
+              path: ./pat
+      containers:
+      - env:
+        - name: LB_SERVICE
+          value: receiver
+        - name: RECEIVER
+          value: flux-system
+        - name: RECEIVER_SECRET # will be created if doesn't exist
+          value: webhook-token
+        - name: GITREPO
+          value: flux-system
+        name: ensure-hook
+        image: bitnami/kubectl
+        command:
+        - bash
+        - -c
+        - |+
+          set -euo pipefail
+          _timeout() {
+            sleep 60; echo timeout; kill $$$$
+          }
+          _timeout &
+
+          echo "Ensuring Webhook Secret..."
+
+          fetch_token() {
+            TOKEN="$( kubectl get secret "${RECEIVER_SECRET}" -o jsonpath="{.data.token}" | base64 -d -w0 )"
+            test "${TOKEN}"
+          }
+          if ! fetch_token; then
+            kubectl create secret generic "${RECEIVER_SECRET}" \
+              --from-literal=token="$(head -c 20 /dev/urandom | sha256sum | cut -d' ' -f1)" \
+              --dry-run=client -o=yaml \
+              | grep -v "creationTimestamp:" \
+              | kubectl apply -f -
+            fetch_token
+          fi
+          
+          until IP="$( kubectl get svc "${LB_SERVICE}" -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>/dev/null )"; do
+            echo ... waiting for svc/${LB_SERVICE} IP
+            sleep 10
+          done
+          echo "LoadBalancer IP: $IP"
+          
+          ROUTE="$( kubectl get receiver "${RECEIVER}" -o jsonpath="{.status.url}" )"
+          echo "Route: $ROUTE"
+
+          REMOTE="$( kubectl get gitrepository "${GITREPO}" -o jsonpath="{.spec.url}" | tr : / )"
+          echo "Remote: $REMOTE"
+
+          OWNER="$( basename "$(dirname "${REMOTE}")" )"
+          REPO="$( basename "${REMOTE}" .git )"
+          echo "{owner}/{repo}: $OWNER/$REPO"
+          
+          curl \
+          -H "Authorization: token $(cat /repo-pat/pat)" \
+          -X POST \
+          https://api.github.com/repos/${OWNER}/${REPO}/hooks \
+          -H 'Content-Type: application/json; charset=utf-8' \
+          --data-binary @- << EOF || true
+          {
+            "events": ["push", "ping"],
+            "config": {
+              "content_type": "json",
+              "secret": "${TOKEN}",
+              "url": "http://${IP}${ROUTE}"
+            }
+          }
+          EOF
+        volumeMounts:
+        - name: repo-pat
+          mountPath: /repo-pat
+
+# RBAC to get/apply Secrets and get Services/GitRepos/Receivers
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: gh-webhook-bootstrap
+  namespace: flux-system
+rules:
+- apiGroups: [""]
+  resources:
+  - secrets
+  verbs:
+  - get
+  - create
+  - update
+  - patch
+- apiGroups: [""]
+  resources:
+  - services
+  verbs:
+  - get
+- apiGroups: ["notification.toolkit.fluxcd.io"]
+  resources:
+  - receivers
+  verbs:
+  - get
+- apiGroups: ["source.toolkit.fluxcd.io"]
+  resources:
+  - gitrepositories
+  verbs:
+  - get
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: gh-webhook-bootstrap
+  namespace: flux-system
+subjects:
+- kind: ServiceAccount
+  name: gh-webhook-bootstrap
+roleRef:
+  kind: Role
+  name: gh-webhook-bootstrap
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gh-webhook-bootstrap
+  namespace: flux-system
